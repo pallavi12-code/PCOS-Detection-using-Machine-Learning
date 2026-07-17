@@ -1,4 +1,9 @@
+
 # 🌸 PCOS Predict — Multi-Modal AI Detection System
+
+[![Live Demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://pcos-prediction-system21.streamlit.app/)
+
+**🔗 Live Demo:** [pcos-prediction-system21.streamlit.app](https://pcos-prediction-system21.streamlit.app/)
 
 An AI-powered PCOS (Polycystic Ovary Syndrome) screening system that combines **machine learning, deep learning, computer vision, and explainable AI** to estimate PCOS risk from clinical data, symptoms, and ultrasound images.
 
@@ -193,6 +198,8 @@ pcos-predict/
 
 ## 🚀 Installation
 
+> 💡 Want to try it without installing anything? Use the [live demo](https://pcos-prediction-system21.streamlit.app/).
+
 **1. Clone the repository**
 ```bash
 git clone https://github.com/YOUR_USERNAME/pcos-predict.git
@@ -269,10 +276,6 @@ This system is developed for **research and educational purposes only**. Its pre
 
 ## 👩‍💻 Author
 
--Marikanti Pallavi Reddy
--B.E. Artificial Intelligence & Machine Learning
--Chaitanya Bharathi Institute of Technology, Hyderabad
-
-
-
-
+** (Marikanti Pallavi Reddy)**
+B.E. Artificial Intelligence & Machine Learning
+Chaitanya Bharathi Institute of Technology, Hyderabad

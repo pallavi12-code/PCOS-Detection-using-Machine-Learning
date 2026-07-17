@@ -269,6 +269,6 @@ This system is developed for **research and educational purposes only**. Its pre
 
 ## 👩‍💻 Author
 
-**Rinki (Marikanti Pallavi Reddy)**
-B.E. Artificial Intelligence & Machine Learning
-Chaitanya Bharathi Institute of Technology, Hyderabad
+-Marikanti Pallavi Reddy
+-B.E. Artificial Intelligence & Machine Learning
+-Chaitanya Bharathi Institute of Technology, Hyderabad

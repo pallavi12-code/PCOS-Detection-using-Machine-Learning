@@ -1,179 +1,107 @@
-
-# 🌸 PCOS Predict — Multi-Modal AI Detection System
+# 🌸 PCOS Predict — Multi-Modal AI Screening System
 
 [![Live Demo](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://pcos-prediction-system21.streamlit.app/)
 
-**🔗 Live Demo:** [pcos-prediction-system21.streamlit.app](https://pcos-prediction-system21.streamlit.app/)
+**PCOS Predict** is a research and educational AI screening application that combines clinical/lifestyle features, symptom information, and ultrasound image analysis to estimate PCOS risk.
 
-An AI-powered PCOS (Polycystic Ovary Syndrome) screening system that combines **machine learning, deep learning, computer vision, and explainable AI** to estimate PCOS risk from clinical data, symptoms, and ultrasound images.
+> ⚠️ This project is for research and educational purposes only. It is not a medical diagnostic tool.
 
-The system produces a probability-based risk assessment through a Streamlit web app by combining:
+## What the system does
 
-- 🩺 Clinical & lifestyle data analysis
-- 📋 Symptom-based risk scoring
-- 🧠 Ultrasound image classification (EfficientNetB0)
-- 🔍 GradCAM-based explainability
+- 🩺 Processes clinical and lifestyle features
+- 📋 Incorporates symptom-based information
+- 🩻 Classifies ultrasound images with EfficientNetB0
+- 🔍 Uses Grad-CAM to visualize image regions influencing CNN predictions
+- 🧠 Combines available signals into a probability-based risk assessment
+- 🌐 Provides an interactive Streamlit interface
 
----
+## Architecture
 
-## 📌 Problem Statement
-
-Polycystic Ovary Syndrome (PCOS) is a common hormonal disorder affecting women of reproductive age. Early detection is difficult because symptoms vary between individuals and often overlap with other conditions.
-
-This project builds an end-to-end AI screening system that integrates multiple data sources — symptoms, clinical lab parameters, and ultrasound images — into a single PCOS risk prediction score.
-
-> ⚠️ **Disclaimer:** This project is for research and educational purposes only and does not replace medical diagnosis.
-
----
-
-## 🏗️ System Architecture
-
-```
-                          User Input
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-  Symptom Analysis    Clinical ML Ensemble   Ultrasound CNN
-                                              (EfficientNetB0)
-        │                     │                     │
-        └─────────────────────┼─────────────────────┘
-                              ▼
-                    Adaptive Fusion Layer
-                              │
-                              ▼
-                      Final Risk Score
-                              │
-                ┌─────────────┴─────────────┐
-                ▼                           ▼
-        Probability Score            GradCAM Heatmap
+```text
+Clinical / Lifestyle Data ──> Clinical ML Ensemble ──┐
+                                                     │
+Symptoms ─────────────────> Risk Features ──────────┼──> Fusion ──> Risk Score
+                                                     │
+Ultrasound Image ─────────> EfficientNetB0 ─────────┘
+                                      │
+                                      └──> Grad-CAM Explanation
 ```
 
----
+## Clinical ML pipeline
 
-## 🧠 Clinical Data Model
+The tabular pipeline uses:
 
-The clinical model predicts PCOS risk from medical and lifestyle features.
-
-**Algorithms used:**
 - XGBoost
 - LightGBM
 - Random Forest
-- Logistic Regression (meta-learner)
-
-**Techniques applied:**
+- Logistic Regression meta-learner
 - Stacking ensemble learning
 - Optuna hyperparameter optimization
-- SelectKBest feature selection + mutual information ranking
+- SelectKBest / mutual-information feature selection
 - SMOTE class balancing
 - Probability calibration
 
-**Pipeline:**
-
-```
+```text
 Clinical Dataset
-      │
-      ▼
-Data Preprocessing
-      │
-      ▼
+      ↓
+Preprocessing
+      ↓
 Feature Selection
-      │
-      ▼
-SMOTE Balancing
-      │
-      ▼
+      ↓
+SMOTE
+      ↓
 XGBoost + LightGBM + Random Forest
-      │
-      ▼
+      ↓
 Stacking Classifier
-      │
-      ▼
+      ↓
 Probability Calibration
-      │
-      ▼
-PCOS Prediction
+      ↓
+Risk Prediction
 ```
 
----
+## Ultrasound model
 
-## 🩻 Deep Learning Model — Ultrasound Classification
+The image branch uses transfer learning with **EfficientNetB0** pretrained on ImageNet.
 
-The ultrasound module uses transfer learning with EfficientNetB0.
-
-**CNN architecture:**
-
-```
-EfficientNetB0 (pretrained on ImageNet)
-      │
-      ▼
+```text
+EfficientNetB0
+      ↓
 Global Average Pooling
-      │
-      ▼
+      ↓
 Batch Normalization
-      │
-      ▼
-Dense Layer (256) → Dropout (0.5)
-      │
-      ▼
-Dense Layer (128)
-      │
-      ▼
-Softmax Output → PCOS / Non-PCOS
+      ↓
+Dense(256) + Dropout
+      ↓
+Dense(128)
+      ↓
+Softmax → PCOS / Non-PCOS
 ```
 
-**Training strategy:**
-- Two-phase transfer learning: frozen base model, then fine-tuning the last 100 layers
-- Mixed precision training
-- Class weight handling for imbalance
+Training includes a frozen-backbone stage followed by fine-tuning, image augmentation, mixed precision, and class-weight handling.
 
-**Image augmentation:** horizontal flip, random crop, brightness/contrast/saturation adjustment
+## Explainability
 
----
+Grad-CAM generates heatmaps highlighting image regions that contribute to the CNN prediction. These visualizations are intended to make model behavior easier to inspect rather than treating the prediction as an unexplained score.
 
-## 🔍 Explainable AI (GradCAM)
+## Results
 
-GradCAM highlights the ultrasound image regions most influential to each CNN prediction — improving interpretability and giving visual evidence behind each classification rather than a black-box score.
+| Component | Metric | Reported result |
+|---|---|---:|
+| Clinical ensemble | ROC-AUC | 0.93 |
+| Clinical ensemble | Recall | ≥88% |
+| Clinical ensemble | Average Precision | 0.91 |
+| EfficientNetB0 | Validation accuracy | ~87% |
 
----
+These are project evaluation results and should not be interpreted as clinical performance.
 
-## 🌐 Streamlit Application
+## Project structure
 
-**Workflow:**
-
-```
-Personal Information → Symptom Checklist → Clinical Lab Values
-        → Ultrasound Upload → AI Prediction → Risk Score + Explanation
-```
-
-**Features:**
-- ✅ Multi-modal AI prediction with adaptive fusion of whatever inputs are available
-- ✅ Clinical ML prediction
-- ✅ Ultrasound CNN classification
-- ✅ GradCAM visualization
-- ✅ Probability-based risk score
-- ✅ Interactive healthcare-focused UI
-
----
-
-## 📊 Results
-
-| Model | Metric | Performance |
-|---|---|---|
-| Clinical Ensemble | ROC-AUC | 0.93 |
-| Clinical Ensemble | Recall | ≥88% |
-| Clinical Ensemble | Average Precision | 0.91 |
-| EfficientNetB0 CNN | Validation Accuracy | ~87% |
-
----
-
-## 📂 Project Structure
-
-```
-pcos-predict/
-├── app.py                    # Streamlit application
-├── tabular.py                 # Clinical ML model (training)
-├── pcos.py                    # CNN training model
-├── test_cnn.py                 # CNN prediction/inference
+```text
+PCOS-Detection-using-Machine-Learning/
+├── app.py
+├── tabular.py
+├── pcos.py
+├── test_cnn.py
 ├── requirements.txt
 ├── models/
 │   ├── pcos_clinical_model.pkl
@@ -182,100 +110,38 @@ pcos-predict/
 └── README.md
 ```
 
----
+## Run locally
 
-## ⚙️ Tech Stack
-
-| Category | Tools |
-|---|---|
-| Language | Python |
-| Machine Learning | Scikit-learn, XGBoost, LightGBM, Optuna, SMOTE |
-| Deep Learning | TensorFlow, Keras, EfficientNetB0 |
-| Explainable AI | GradCAM, SHAP |
-| Deployment | Streamlit |
-
----
-
-## 🚀 Installation
-
-> 💡 Want to try it without installing anything? Use the [live demo](https://pcos-prediction-system21.streamlit.app/).
-
-**1. Clone the repository**
 ```bash
-git clone https://github.com/YOUR_USERNAME/pcos-predict.git
-cd pcos-predict
-```
-
-**2. Install dependencies**
-```bash
+git clone https://github.com/pallavi12-code/PCOS-Detection-using-Machine-Learning.git
+cd PCOS-Detection-using-Machine-Learning
 pip install -r requirements.txt
-```
-
-**3. Add model files**
-
-Place trained models inside `models/`:
-```
-models/
-├── pcos_clinical_model.pkl
-├── pcos_cnn_model.keras
-└── weights.weights.h5
-```
-
-**4. Run the application**
-```bash
 streamlit run app.py
 ```
 
----
+For training:
 
-## 🏋️ Training
-
-**Train the clinical model:**
 ```bash
 python tabular.py
-```
-
-**Train the CNN model:**
-```bash
 python pcos.py
-```
-
-**Run CNN prediction/inference:**
-```bash
 python test_cnn.py
 ```
 
----
+A hosted demo is available at: https://pcos-prediction-system21.streamlit.app/
 
-## ⭐ Key Highlights
+## Tech stack
 
-- Multi-modal healthcare AI system combining ML and deep learning
-- Ensemble classification with Optuna-tuned stacking
-- EfficientNetB0-based medical image classifier
-- Explainable AI via GradCAM
-- High-recall-optimized screening with probability calibration
-- Deployed as an interactive Streamlit app
+**Python · Scikit-learn · XGBoost · LightGBM · Optuna · TensorFlow/Keras · EfficientNetB0 · Grad-CAM · Streamlit**
 
----
+## Future work
 
-## 🔮 Future Enhancements
+- Evaluate on larger and more diverse datasets
+- Add stronger external validation
+- Improve model monitoring and reproducibility
+- Explore mobile/edge deployment
+- Add more rigorous uncertainty analysis
 
-- Mobile application deployment
-- Hospital database integration
-- Larger, more diverse medical datasets
-- Advanced transformer-based medical models
-- Real-time patient monitoring
+## Author
 
----
-
-## ⚕️ Medical Disclaimer
-
-This system is developed for **research and educational purposes only**. Its predictions are not a medical diagnosis. PCOS diagnosis must be confirmed by qualified healthcare professionals using clinical examination, laboratory tests, medical history, and ultrasound evaluation.
-
----
-
-## 👩‍💻 Author
-
-** (Marikanti Pallavi Reddy)**
-B.E. Artificial Intelligence & Machine Learning
-Chaitanya Bharathi Institute of Technology, Hyderabad
+**Pallavi Reddy**  
+B.E. Artificial Intelligence & Machine Learning, CBIT Hyderabad

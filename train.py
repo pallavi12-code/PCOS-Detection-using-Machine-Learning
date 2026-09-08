@@ -20,7 +20,7 @@ from sklearn.utils.class_weight import compute_class_weight
 from tensorflow.keras import Model, layers
 from tensorflow.keras.applications import EfficientNetB0
 
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+from data_utils import Sample, discover_samples, split_samples
 
 
 def set_seed(seed: int) -> None:
@@ -30,49 +30,13 @@ def set_seed(seed: int) -> None:
     tf.random.set_seed(seed)
 
 
-def discover_samples(data_dir: Path) -> tuple[list[tuple[str, int]], dict[str, int]]:
-    """Discover image files from one subdirectory per class."""
-    class_dirs = sorted(p for p in data_dir.iterdir() if p.is_dir())
-    if len(class_dirs) < 2:
-        raise ValueError("data_dir must contain at least two class directories")
-
-    class_indices = {directory.name: index for index, directory in enumerate(class_dirs)}
-    samples: list[tuple[str, int]] = []
-
-    for directory in class_dirs:
-        files = sorted(
-            path for path in directory.rglob("*")
-            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
-        )
-        samples.extend((str(path), class_indices[directory.name]) for path in files)
-
-    if not samples:
-        raise ValueError(f"No supported images found under {data_dir}")
-
-    return samples, class_indices
-
-
-def split_samples(
-    samples: list[tuple[str, int]], validation_fraction: float, seed: int
-) -> tuple[list[tuple[str, int]], list[tuple[str, int]]]:
-    """Create a deterministic train/validation split."""
-    if not 0 < validation_fraction < 1:
-        raise ValueError("validation_fraction must be between 0 and 1")
-
-    shuffled = samples.copy()
-    random.Random(seed).shuffle(shuffled)
-    split_index = int(len(shuffled) * (1 - validation_fraction))
-    if split_index == 0 or split_index == len(shuffled):
-        raise ValueError("Dataset is too small for the requested validation split")
-    return shuffled[:split_index], shuffled[split_index:]
-
-
 def make_dataset(
-    samples: list[tuple[str, int]],
+    samples: list[Sample],
     image_size: tuple[int, int],
     batch_size: int,
     num_classes: int,
     training: bool,
+    seed: int,
 ) -> tf.data.Dataset:
     """Build a tf.data pipeline without deleting or modifying source images."""
     paths = [path for path, _ in samples]
@@ -92,9 +56,11 @@ def make_dataset(
 
         return image, tf.one_hot(label, num_classes)
 
+    dataset = tf.data.Dataset.from_tensor_slices((paths, labels))
+    if training:
+        dataset = dataset.shuffle(len(samples), seed=seed, reshuffle_each_iteration=True)
     return (
-        tf.data.Dataset.from_tensor_slices((paths, labels))
-        .map(load, num_parallel_calls=tf.data.AUTOTUNE)
+        dataset.map(load, num_parallel_calls=tf.data.AUTOTUNE, deterministic=True)
         .batch(batch_size)
         .prefetch(tf.data.AUTOTUNE)
     )
@@ -108,10 +74,16 @@ def class_weights(samples: list[tuple[str, int]]) -> dict[int, float]:
     return {int(label): float(weight) for label, weight in zip(classes, weights)}
 
 
-def build_model(num_classes: int, image_size: tuple[int, int]) -> Model:
+def build_model(
+    num_classes: int, image_size: tuple[int, int], weights: str = "imagenet"
+) -> Model:
     """Build an EfficientNetB0 transfer-learning classifier."""
     inputs = tf.keras.Input(shape=(*image_size, 3))
-    backbone = EfficientNetB0(include_top=False, weights="imagenet", input_tensor=inputs)
+    backbone = EfficientNetB0(
+        include_top=False,
+        weights=None if weights == "none" else weights,
+        input_tensor=inputs,
+    )
     backbone.trainable = False
 
     x = backbone(inputs, training=False)
@@ -133,6 +105,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
+    parser.add_argument(
+        "--weights", choices=("imagenet", "none"), default="imagenet",
+        help="EfficientNet initialization; use none for offline runs.",
+    )
+    parser.add_argument("--image-size", type=int, default=224)
     return parser.parse_args()
 
 
@@ -140,17 +117,24 @@ def main() -> None:
     args = parse_args()
     if args.epochs < 1 or args.batch_size < 1:
         raise ValueError("epochs and batch-size must be positive")
+    if args.image_size < 1:
+        raise ValueError("image-size must be positive")
 
     set_seed(args.seed)
+    tf.config.experimental.enable_op_determinism()
     samples, class_indices = discover_samples(args.data_dir)
     train_samples, val_samples = split_samples(samples, args.validation_fraction, args.seed)
-    image_size = (224, 224)
+    image_size = (args.image_size, args.image_size)
     num_classes = len(class_indices)
 
-    train_ds = make_dataset(train_samples, image_size, args.batch_size, num_classes, True)
-    val_ds = make_dataset(val_samples, image_size, args.batch_size, num_classes, False)
+    train_ds = make_dataset(
+        train_samples, image_size, args.batch_size, num_classes, True, args.seed
+    )
+    val_ds = make_dataset(
+        val_samples, image_size, args.batch_size, num_classes, False, args.seed
+    )
 
-    model = build_model(num_classes, image_size)
+    model = build_model(num_classes, image_size, args.weights)
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=args.learning_rate),
         loss=tf.keras.losses.CategoricalCrossentropy(label_smoothing=0.05),
@@ -177,9 +161,18 @@ def main() -> None:
     with open(args.output_dir / "class_indices.json", "w", encoding="utf-8") as handle:
         json.dump(class_indices, handle, indent=2)
 
-    model.save(args.output_dir / "final_model.keras")
     with open(args.output_dir / "training_summary.json", "w", encoding="utf-8") as handle:
-        json.dump({"classes": class_indices, "train_samples": len(train_samples), "validation_samples": len(val_samples), "history": history.history}, handle, indent=2)
+        json.dump(
+            {
+                "classes": class_indices,
+                "train_samples": len(train_samples),
+                "validation_samples": len(val_samples),
+                "seed": args.seed,
+                "history": history.history,
+            },
+            handle,
+            indent=2,
+        )
 
 
 if __name__ == "__main__":

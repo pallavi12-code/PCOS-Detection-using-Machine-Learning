@@ -9,3 +9,9 @@ __pycache__/
 *.log
 models/
 checkpoints/
+artifacts/
+data/
+*.keras
+*.h5
+*.joblib
+*.pkl
